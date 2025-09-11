@@ -30,10 +30,10 @@ public class ProductController {
         return ResponseEntity.status(HttpStatus.CREATED).body(createdProduct);
     }
 
-    @GetMapping("{id}")
-    public ResponseEntity<ProductResponseDto> getProductById(@PathVariable Long id){
+    @GetMapping("/{id}")
+    public ResponseEntity<ProductResponseDto> getProductById(@PathVariable Long id) {
         ProductResponseDto productFound = productService.getProductById(id);
-        return ResponseEntity.status(HttpStatus.FOUND).body(productFound);
+        return ResponseEntity.ok(productFound);
     }
 
     @GetMapping("/all")
