@@ -9,10 +9,6 @@ import com.amazon.product_service.model.Product;
 import com.amazon.product_service.repository.ProductRepository;
 import com.amazon.product_service.service.ProductService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
@@ -20,6 +16,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class ProductServiceImpl implements ProductService {
@@ -32,9 +29,9 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public ProductResponseDto createProduct(ProductRequestDto productRequest) {
-        Product product = productMapper.toEntity(productRequest); // FIX: Use injected mapper
+        Product product = productMapper.toEntity(productRequest);
         Product savedProduct = productRepository.save(product);
-        return productMapper.toResponseDto(savedProduct); // FIX: Use injected mapper
+        return productMapper.toResponseDto(savedProduct);
     }
 
     @Override
@@ -43,7 +40,7 @@ public class ProductServiceImpl implements ProductService {
         if (product.isEmpty()) {
             throw new ProductNotFoundException("Product not found with id: " + id);
         }
-        return productMapper.toResponseDto(product.get()); // FIX: Use injected mapper
+        return productMapper.toResponseDto(product.get());
     }
 
     @Override
@@ -54,12 +51,9 @@ public class ProductServiceImpl implements ProductService {
             throw new ProductNotFoundException("No products found");
         }
 
-        List<ProductResponseDto> responseDtos = new ArrayList<>();
-        for (Product product : products) {
-            responseDtos.add(productMapper.toResponseDto(product)); // FIX: Use injected mapper
-        }
-
-        return responseDtos;
+        return products.stream()
+                .map(productMapper::toResponseDto)
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -83,8 +77,7 @@ public class ProductServiceImpl implements ProductService {
         product.setIsFeatured(requestDto.getIsFeatured());
 
         Product updatedProduct = productRepository.save(product);
-
-        return productMapper.toResponseDto(updatedProduct); // FIX: Use injected mapper
+        return productMapper.toResponseDto(updatedProduct);
     }
 
     @Override
@@ -93,38 +86,42 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public Page<ProductResponseDto> getProductsByCategory(String category, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
-        Page<Product> products = productRepository.findByCategoryIgnoreCase(category, pageable);
+    public List<ProductResponseDto> getProductsByCategory(String category) {
+        List<Product> products = productRepository.findByCategoryIgnoreCase(category);
 
         if (products.isEmpty()) {
             throw new ProductNotFoundException("No products found in category: " + category);
         }
 
-        return products.map(productMapper::toResponseDto); // FIX: Use injected mapper
+        return products.stream()
+                .map(productMapper::toResponseDto)
+                .collect(Collectors.toList());
     }
+
     @Override
-    public Page<ProductResponseDto> getProductsByParentCategory(String category, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
-        Page<Product> products = productRepository.findByParentCategoryIgnoreCase(category, pageable);
+    public List<ProductResponseDto> getProductsByParentCategory(String category) {
+        List<Product> products = productRepository.findByParentCategoryIgnoreCase(category);
 
         if (products.isEmpty()) {
-            throw new ProductNotFoundException("No products found in category: " + category);
+            throw new ProductNotFoundException("No products found in parent category: " + category);
         }
 
-        return products.map(productMapper::toResponseDto); // FIX: Use injected mapper
+        return products.stream()
+                .map(productMapper::toResponseDto)
+                .collect(Collectors.toList());
     }
 
     @Override
-    public Page<ProductResponseDto> getProductsByBrand(String brand, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
-        Page<Product> products = productRepository.findByBrandIgnoreCase(brand, pageable);
+    public List<ProductResponseDto> getProductsByBrand(String brand) {
+        List<Product> products = productRepository.findByBrandIgnoreCase(brand);
 
         if (products.isEmpty()) {
             throw new ProductNotFoundException("No products found in brand: " + brand);
         }
 
-        return products.map(productMapper::toResponseDto); // FIX: Use injected mapper
+        return products.stream()
+                .map(productMapper::toResponseDto)
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -133,72 +130,68 @@ public class ProductServiceImpl implements ProductService {
                 .orElseThrow(() -> new ProductNotFoundException("Product not found with id " + productId));
 
         product.setStockQuantity(quantity);
-        Product savedProduct = productRepository.save(product); // FIX: Add save call
-
-        return productMapper.toResponseDto(savedProduct); // FIX: Use injected mapper
+        Product savedProduct = productRepository.save(product);
+        return productMapper.toResponseDto(savedProduct);
     }
 
     @Override
-    public Page<ProductResponseDto> getFeaturedProducts(int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
-        Page<Product> featuredProducts = productRepository.findByIsFeaturedTrue(pageable);
+    public List<ProductResponseDto> getFeaturedProducts() {
+        List<Product> featuredProducts = productRepository.findByIsFeaturedTrue();
 
         if (featuredProducts.isEmpty()){
             throw new ProductNotFoundException("No featured products found");
         }
 
-        return featuredProducts.map(productMapper::toResponseDto);
+        return featuredProducts.stream()
+                .map(productMapper::toResponseDto)
+                .collect(Collectors.toList());
     }
 
     @Override
-    public Page<ProductResponseDto> getLowStockProducts(Integer threshold, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
-        Page<Product> lowStockProducts = productRepository.findByStockQuantityLessThan(threshold, pageable);
+    public List<ProductResponseDto> getLowStockProducts(Integer threshold) {
+        List<Product> lowStockProducts = productRepository.findByStockQuantityLessThan(threshold);
 
         if (lowStockProducts.isEmpty()) {
             throw new ProductNotFoundException("No products found with stock less than " + threshold);
         }
 
-        return lowStockProducts.map(productMapper::toResponseDto);
-
+        return lowStockProducts.stream()
+                .map(productMapper::toResponseDto)
+                .collect(Collectors.toList());
     }
 
     @Override
-    public Page<ProductResponseDto> searchProducts(
+    public List<ProductResponseDto> searchProducts(
             String keyword,
             String category,
             String brand,
             BigDecimal minPrice,
-            BigDecimal maxPrice,
-            int page,
-            int size) {
+            BigDecimal maxPrice) {
 
-        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-
-        // Query with all filters in DB (better performance & correct pagination)
-        Page<Product> productsPage = productRepository.searchProducts(
+        List<Product> products = productRepository.searchProducts(
                 keyword == null ? null : keyword.toLowerCase(),
                 category,
                 brand,
                 minPrice,
-                maxPrice,
-                pageable
+                maxPrice
         );
 
-        // Map to DTOs
-        return productsPage.map(productMapper::toResponseDto);
+        return products.stream()
+                .map(productMapper::toResponseDto)
+                .collect(Collectors.toList());
     }
 
     @Override
-    public Page<ProductResponseDto> getProductsByPriceRange(BigDecimal min, BigDecimal max, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
-        Page<Product> products = productRepository.findByPriceBetween(min, max, pageable);
+    public List<ProductResponseDto> getProductsByPriceRange(BigDecimal min, BigDecimal max) {
+        List<Product> products = productRepository.findByPriceBetween(min, max);
 
         if (products.isEmpty()) {
             throw new ProductNotFoundException("No products found with range " + min + " to " + max);
         }
 
-        return products.map(productMapper::toResponseDto); // FIX: Use injected mapper
+        return products.stream()
+                .map(productMapper::toResponseDto)
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -207,44 +200,42 @@ public class ProductServiceImpl implements ProductService {
                 .orElseThrow(() -> new ProductNotFoundException("Product not found with id " + id));
 
         product.setIsActive(isActive);
-        Product savedProduct = productRepository.save(product); // FIX: Add save call
-
-        return productMapper.toResponseDto(savedProduct); // FIX: Use injected mapper
-    }
-
-    @Override // FIX: Add to interface too
-    public Page<ProductSummaryDto> getAllProductsSorted(int page, int size, String sortBy) {
-        Pageable pageable;
-
-        switch(sortBy) {
-            case "price_asc":
-                pageable = PageRequest.of(page, size, Sort.by("price").ascending());
-                break;
-            case "price_desc":
-                pageable = PageRequest.of(page, size, Sort.by("price").descending());
-                break;
-            case "name_asc":
-                pageable = PageRequest.of(page, size, Sort.by("name").ascending());
-                break;
-            case "newest":
-            default:
-                pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-                break;
-        }
-
-        // FIX: Proper implementation
-        Page<Product> products = productRepository.findAll(pageable);
-        List<ProductSummaryDto> summaryDtos = new ArrayList<>();
-        for (Product product : products.getContent()) {
-            summaryDtos.add(productMapper.toSummaryDto(product));
-        }
-
-        return new PageImpl<>(summaryDtos, pageable, products.getTotalElements());
+        Product savedProduct = productRepository.save(product);
+        return productMapper.toResponseDto(savedProduct);
     }
 
     @Override
-    public Page<Product> getProductsByCategories(List<String> categories, Pageable pageable) {
-        return productRepository.findByParentCategoryInIgnoreCase(categories, pageable);
+    public List<ProductSummaryDto> getAllProductsSorted(String sortBy) {
+        Sort sort;
+
+        switch(sortBy) {
+            case "price-low":
+                sort = Sort.by("price").ascending();
+                break;
+            case "price-high":
+                sort = Sort.by("price").descending();
+                break;
+            case "rating":
+                sort = Sort.by("rating").descending();
+                break;
+            case "popular":
+                sort = Sort.by("viewCount").descending();
+                break;
+            case "newest":
+            default:
+                sort = Sort.by("createdAt").descending();
+                break;
+        }
+
+        List<Product> products = productRepository.findAll(sort);
+        return products.stream()
+                .map(productMapper::toSummaryDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<Product> getProductsByCategories(List<String> categories) {
+        return productRepository.findByParentCategoryInIgnoreCase(categories);
     }
 
     @Override
@@ -287,7 +278,6 @@ public class ProductServiceImpl implements ProductService {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
 
-        // Replace with new ordered list
         product.setImageUrls(new ArrayList<>(reorderedImages));
         productRepository.save(product);
     }
@@ -310,11 +300,12 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public List<ProductResponseDto> getPopularProducts(int limit) {
-        Pageable pageable = PageRequest.of(0, limit, Sort.by("viewCount").descending());
-        Page<Product> products = productRepository.findAll(pageable);
+        Sort sort = Sort.by("viewCount").descending();
+        List<Product> products = productRepository.findAll(sort);
 
-        return products.getContent().stream()
+        return products.stream()
+                .limit(limit)
                 .map(productMapper::toResponseDto)
-                .toList();
+                .collect(Collectors.toList());
     }
 }

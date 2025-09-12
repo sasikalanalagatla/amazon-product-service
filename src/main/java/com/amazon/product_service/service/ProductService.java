@@ -4,8 +4,6 @@ import com.amazon.product_service.dto.ProductRequestDto;
 import com.amazon.product_service.dto.ProductResponseDto;
 import com.amazon.product_service.dto.ProductSummaryDto;
 import com.amazon.product_service.model.Product;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -21,28 +19,27 @@ public interface ProductService {
 
     void deleteProduct(Long id);
 
-    Page<ProductResponseDto> getProductsByCategory(String categoryName, int page, int size);
+    List<ProductResponseDto> getProductsByCategory(String categoryName);
 
     ProductResponseDto updateStock(Long id, Integer quantity);
 
-    Page<ProductResponseDto> getFeaturedProducts(int page, int size);
+    List<ProductResponseDto> getFeaturedProducts();
 
-    Page<ProductResponseDto> getProductsByPriceRange(BigDecimal min, BigDecimal max, int page, int size);
+    List<ProductResponseDto> getProductsByPriceRange(BigDecimal min, BigDecimal max);
 
     ProductResponseDto setProductActiveStatus(Long id, boolean b);
 
-    Page<ProductResponseDto> getProductsByBrand(String brand, int page, int size);
+    List<ProductResponseDto> getProductsByBrand(String brand);
 
-    Page<ProductSummaryDto> getAllProductsSorted(int page, int size, String sort);
+    List<ProductSummaryDto> getAllProductsSorted(String sort);
 
-    Page<ProductResponseDto> getLowStockProducts(Integer threshold, int page, int size);
+    List<ProductResponseDto> getLowStockProducts(Integer threshold);
 
-    Page<ProductResponseDto> searchProducts(String keyword, String category, String brand, BigDecimal minPrice,
-                                            BigDecimal maxPrice, int page, int size);
+    List<ProductResponseDto> searchProducts(String keyword, String category, String brand, BigDecimal minPrice, BigDecimal maxPrice);
 
-    Page<ProductResponseDto> getProductsByParentCategory(String categoryName, int page, int size);
+    List<ProductResponseDto> getProductsByParentCategory(String categoryName);
 
-    Page<Product> getProductsByCategories(List<String> categories, Pageable pageable);
+    List<Product> getProductsByCategories(List<String> categories);
 
     int bulkUpdateStatus(List<Long> productIds, Boolean isActive);
 

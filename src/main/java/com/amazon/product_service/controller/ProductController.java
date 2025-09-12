@@ -6,10 +6,6 @@ import com.amazon.product_service.dto.ProductSummaryDto;
 import com.amazon.product_service.model.Product;
 import com.amazon.product_service.service.impl.ProductServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -39,7 +35,7 @@ public class ProductController {
     @GetMapping("/all")
     public ResponseEntity<List<ProductResponseDto>> getAllProducts(){
         List<ProductResponseDto> allProducts = productService.getAllProducts();
-        return ResponseEntity.status(HttpStatus.FOUND).body(allProducts);
+        return ResponseEntity.ok(allProducts);
     }
 
     @PutMapping("update/{id}")
@@ -56,31 +52,20 @@ public class ProductController {
     }
 
     @GetMapping("/category/{categoryName}")
-    public ResponseEntity<Page<ProductResponseDto>> getProductsByCategory(
-            @PathVariable String categoryName,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-
-        Page<ProductResponseDto> products = productService.getProductsByCategory(categoryName, page, size);
+    public ResponseEntity<List<ProductResponseDto>> getProductsByCategory(@PathVariable String categoryName) {
+        List<ProductResponseDto> products = productService.getProductsByCategory(categoryName);
         return ResponseEntity.ok(products);
     }
-    @GetMapping("/parent-category/{categoryName}")
-    public ResponseEntity<Page<ProductResponseDto>> getProductsByParentCategory(
-            @PathVariable String categoryName,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
 
-        Page<ProductResponseDto> products = productService.getProductsByParentCategory(categoryName, page, size);
+    @GetMapping("/parent-category/{categoryName}")
+    public ResponseEntity<List<ProductResponseDto>> getProductsByParentCategory(@PathVariable String categoryName) {
+        List<ProductResponseDto> products = productService.getProductsByParentCategory(categoryName);
         return ResponseEntity.ok(products);
     }
 
     @GetMapping("/brand/{brand}")
-    public ResponseEntity<Page<ProductResponseDto>> getProductsByBrand(
-            @PathVariable String brand,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-
-        Page<ProductResponseDto> products = productService.getProductsByBrand(brand, page, size);
+    public ResponseEntity<List<ProductResponseDto>> getProductsByBrand(@PathVariable String brand) {
+        List<ProductResponseDto> products = productService.getProductsByBrand(brand);
         return ResponseEntity.ok(products);
     }
 
@@ -94,28 +79,22 @@ public class ProductController {
     }
 
     @GetMapping("/featured")
-    public ResponseEntity<Page<ProductResponseDto>> getFeaturedProducts(@RequestParam(defaultValue = "0") int page,
-                                                                        @RequestParam(defaultValue = "10") int size){
-        Page<ProductResponseDto> featuredProducts = productService.getFeaturedProducts(page, size);
-        return ResponseEntity.status(HttpStatus.FOUND).body(featuredProducts);
+    public ResponseEntity<List<ProductResponseDto>> getFeaturedProducts(){
+        List<ProductResponseDto> featuredProducts = productService.getFeaturedProducts();
+        return ResponseEntity.ok(featuredProducts);
     }
 
     @GetMapping("/low-stock")
-    public ResponseEntity<Page<ProductResponseDto>> getLowStockProducts(@RequestParam Integer threshold,
-                                                                        @RequestParam(defaultValue = "0") int page,
-                                                                        @RequestParam(defaultValue = "10") int size) {
-        Page<ProductResponseDto> lowStockProducts = productService.getLowStockProducts(threshold, page, size);
+    public ResponseEntity<List<ProductResponseDto>> getLowStockProducts(@RequestParam Integer threshold) {
+        List<ProductResponseDto> lowStockProducts = productService.getLowStockProducts(threshold);
         return ResponseEntity.ok(lowStockProducts);
     }
 
     @GetMapping("/price-range")
-    public ResponseEntity<Page<ProductResponseDto>> getProductsByPriceRange(
+    public ResponseEntity<List<ProductResponseDto>> getProductsByPriceRange(
             @RequestParam BigDecimal min,
-            @RequestParam BigDecimal max,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size
-    ){
-        Page<ProductResponseDto> products = productService.getProductsByPriceRange(min,max,page,size);
+            @RequestParam BigDecimal max) {
+        List<ProductResponseDto> products = productService.getProductsByPriceRange(min, max);
         return ResponseEntity.ok(products);
     }
 
@@ -132,40 +111,28 @@ public class ProductController {
     }
 
     @GetMapping("/")
-    public Page<ProductSummaryDto> getAllProducts(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "newest") String sort) {
-
-        return productService.getAllProductsSorted(page, size, sort);
+    public List<ProductSummaryDto> getAllProductsSorted(@RequestParam(defaultValue = "newest") String sort) {
+        return productService.getAllProductsSorted(sort);
     }
 
     @GetMapping("/search")
-    public ResponseEntity<Page<ProductResponseDto>> searchProducts(
+    public ResponseEntity<List<ProductResponseDto>> searchProducts(
             @RequestParam String keyword,
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String brand,
             @RequestParam(required = false) BigDecimal minPrice,
-            @RequestParam(required = false) BigDecimal maxPrice,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(required = false) BigDecimal maxPrice) {
 
-        Page<ProductResponseDto> results = productService.searchProducts(
-                keyword, category, brand, minPrice, maxPrice, page, size
+        List<ProductResponseDto> results = productService.searchProducts(
+                keyword, category, brand, minPrice, maxPrice
         );
 
         return ResponseEntity.ok(results);
     }
 
     @GetMapping("/categories")
-    public ResponseEntity<Page<Product>> getProductsByCategories(
-            @RequestParam List<String> categories,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-
-        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        Page<Product> products = productService.getProductsByCategories(categories, pageable);
-
+    public ResponseEntity<List<Product>> getProductsByCategories(@RequestParam List<String> categories) {
+        List<Product> products = productService.getProductsByCategories(categories);
         return ResponseEntity.ok(products);
     }
 
@@ -208,14 +175,12 @@ public class ProductController {
         return ResponseEntity.ok(exists);
     }
 
-    // Record a product view
     @PostMapping("/{id}/view")
     public ResponseEntity<ProductResponseDto> recordView(@PathVariable Long id) {
         ProductResponseDto updatedProduct = productService.recordView(id);
         return ResponseEntity.ok(updatedProduct);
     }
 
-    // Get most viewed products
     @GetMapping("/popular")
     public ResponseEntity<List<ProductResponseDto>> getPopularProducts(
             @RequestParam(defaultValue = "5") int limit) {
