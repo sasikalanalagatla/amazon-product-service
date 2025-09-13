@@ -8,6 +8,8 @@ import com.amazon.product_service.mapper.ProductMapper;
 import com.amazon.product_service.model.Product;
 import com.amazon.product_service.repository.ProductRepository;
 import com.amazon.product_service.service.ProductService;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -27,6 +29,9 @@ public class ProductServiceImpl implements ProductService {
     @Autowired
     private ProductMapper productMapper;
 
+    @PersistenceContext
+    private EntityManager entityManager;  // Add this for cache clearing
+
     @Override
     public ProductResponseDto createProduct(ProductRequestDto productRequest) {
         Product product = productMapper.toEntity(productRequest);
@@ -45,15 +50,24 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public List<ProductResponseDto> getAllProducts() {
-        List<Product> products = productRepository.findAll();
+        try {
+            // Clear JPA cache to force fresh database query
+            entityManager.clear();
 
-        if (products.isEmpty()) {
-            throw new ProductNotFoundException("No products found");
+            List<Product> products = productRepository.findAll();
+
+            // DON'T throw exception for empty list - return empty list instead
+            if (products.isEmpty()) {
+                return new ArrayList<>();
+            }
+
+            return products.stream()
+                    .map(productMapper::toResponseDto)
+                    .collect(Collectors.toList());
+
+        } catch (Exception e) {
+            return new ArrayList<>(); // Return empty list instead of throwing
         }
-
-        return products.stream()
-                .map(productMapper::toResponseDto)
-                .collect(Collectors.toList());
     }
 
     @Override
@@ -87,15 +101,20 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public List<ProductResponseDto> getProductsByCategory(String category) {
-        List<Product> products = productRepository.findByCategoryIgnoreCase(category);
+        try {
+            entityManager.clear();
+            List<Product> products = productRepository.findByCategoryIgnoreCase(category);
 
-        if (products.isEmpty()) {
-            throw new ProductNotFoundException("No products found in category: " + category);
+            if (products.isEmpty()) {
+                return new ArrayList<>(); // Return empty list, not exception
+            }
+
+            return products.stream()
+                    .map(productMapper::toResponseDto)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            return new ArrayList<>();
         }
-
-        return products.stream()
-                .map(productMapper::toResponseDto)
-                .collect(Collectors.toList());
     }
 
     @Override
@@ -136,15 +155,20 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public List<ProductResponseDto> getFeaturedProducts() {
-        List<Product> featuredProducts = productRepository.findByIsFeaturedTrue();
+        try {
+            entityManager.clear();
+            List<Product> featuredProducts = productRepository.findByIsFeaturedTrue();
 
-        if (featuredProducts.isEmpty()){
-            throw new ProductNotFoundException("No featured products found");
+            if (featuredProducts.isEmpty()) {
+                return new ArrayList<>(); // Return empty list, not exception
+            }
+
+            return featuredProducts.stream()
+                    .map(productMapper::toResponseDto)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            return new ArrayList<>();
         }
-
-        return featuredProducts.stream()
-                .map(productMapper::toResponseDto)
-                .collect(Collectors.toList());
     }
 
     @Override

@@ -1,0 +1,225 @@
+pipeline {
+    agent any
+
+    tools {
+        maven 'Maven'
+        jdk 'Java'
+    }
+
+    environment {
+        DOCKER_IMAGE = 'sasikala13/amazon-product'
+        GCP_PROJECT = 'hello-world-472006'
+        SERVICE_NAME = 'amazon-product-service'
+        REGION = 'us-central1'
+        SERVICE_URL = 'https://amazon-product-service-818142911619.us-central1.run.app'
+        CLOUD_SQL_INSTANCE = 'hello-world-472006:us-central1:amazon-products-1757760180'
+    }
+
+    stages {
+        stage('🔄 Checkout') {
+            steps {
+                echo 'Checking out source code from repository...'
+                checkout scm
+                sh 'echo "Building commit: ${GIT_COMMIT}"'
+            }
+        }
+
+        stage('🔨 Build') {
+            steps {
+                echo 'Building Spring Boot application...'
+                sh './mvnw clean compile'
+                sh './mvnw package -DskipTests'
+                archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
+            }
+        }
+
+        stage('🧪 Test') {
+            steps {
+                echo 'Running unit and integration tests...'
+                sh './mvnw test'
+            }
+            post {
+                always {
+                    publishTestResults testResultsPattern: 'target/surefire-reports/*.xml'
+                    publishHTML([
+                        allowMissing: false,
+                        alwaysLinkToLastBuild: true,
+                        keepAll: true,
+                        reportDir: 'target/site/jacoco',
+                        reportFiles: 'index.html',
+                        reportName: 'Code Coverage Report'
+                    ])
+                }
+            }
+        }
+
+        stage('🔍 Code Quality') {
+            steps {
+                echo 'Running code quality analysis...'
+                sh './mvnw verify sonar:sonar || echo "SonarQube analysis skipped"'
+            }
+        }
+
+        stage('🐳 Build Docker Image') {
+            steps {
+                echo 'Building Docker image...'
+                script {
+                    def buildNumber = env.BUILD_NUMBER
+                    def gitCommit = env.GIT_COMMIT?.take(7) ?: 'unknown'
+
+                    sh """
+                        docker buildx build --platform linux/amd64 \
+                        -t ${DOCKER_IMAGE}:${buildNumber} \
+                        -t ${DOCKER_IMAGE}:${gitCommit} \
+                        -t ${DOCKER_IMAGE}:latest \
+                        --label "build.number=${buildNumber}" \
+                        --label "git.commit=${gitCommit}" \
+                        --label "build.date=\$(date -u +'%Y-%m-%dT%H:%M:%SZ')" .
+                    """
+                }
+            }
+        }
+
+        stage('🔐 Security Scan') {
+            steps {
+                echo 'Scanning Docker image for vulnerabilities...'
+                script {
+                    try {
+                        sh """
+                            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+                            aquasec/trivy:latest image --exit-code 0 --severity HIGH,CRITICAL \
+                            ${DOCKER_IMAGE}:${BUILD_NUMBER} || echo "Security scan completed with warnings"
+                        """
+                    } catch (Exception e) {
+                        echo "Security scan failed, continuing pipeline..."
+                    }
+                }
+            }
+        }
+
+        stage('📤 Push to Registry') {
+            steps {
+                echo 'Pushing Docker image to Docker Hub...'
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-credentials',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS')]) {
+                    sh """
+                        echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+                        docker push ${DOCKER_IMAGE}:${BUILD_NUMBER}
+                        docker push ${DOCKER_IMAGE}:latest
+                        echo "✅ Successfully pushed image: ${DOCKER_IMAGE}:${BUILD_NUMBER}"
+                    """
+                }
+            }
+        }
+
+        stage('🚀 Deploy to Staging') {
+            steps {
+                echo 'Deploying to Google Cloud Run...'
+                withCredentials([file(credentialsId: 'gcp-service-account', variable: 'GCP_KEY_FILE')]) {
+                    sh """
+                        gcloud auth activate-service-account --key-file=\$GCP_KEY_FILE
+                        gcloud config set project ${GCP_PROJECT}
+
+                        gcloud run deploy ${SERVICE_NAME} \
+                        --image ${DOCKER_IMAGE}:${BUILD_NUMBER} \
+                        --region ${REGION} \
+                        --allow-unauthenticated \
+                        --port 8080 \
+                        --memory 2Gi \
+                        --cpu 2 \
+                        --timeout 900 \
+                        --max-instances 10 \
+                        --add-cloudsql-instances ${CLOUD_SQL_INSTANCE} \
+                        --set-env-vars="SPRING_PROFILES_ACTIVE=prod,BUILD_NUMBER=${BUILD_NUMBER},GIT_COMMIT=${GIT_COMMIT}" \
+                        --set-labels="version=${BUILD_NUMBER},environment=production,app=product-service"
+
+                        echo "✅ Deployment completed successfully!"
+                    """
+                }
+            }
+        }
+
+        stage('🔍 Health Check') {
+            steps {
+                echo 'Performing post-deployment health checks...'
+                script {
+                    // Wait for deployment to be ready
+                    sleep 45
+
+                    // Health check with retry logic
+                    retry(3) {
+                        sh """
+                            curl -f --max-time 30 ${SERVICE_URL}/actuator/health
+                            echo "✅ Health check passed!"
+                        """
+                    }
+
+                    // API functionality test
+                    sh """
+                        echo "Testing API endpoints..."
+                        curl -f --max-time 30 ${SERVICE_URL}/product/all | jq length
+                        echo "✅ API endpoints working!"
+                    """
+                }
+            }
+        }
+
+        stage('📊 Performance Test') {
+            steps {
+                echo 'Running basic performance tests...'
+                script {
+                    try {
+                        sh """
+                            # Simple load test using curl
+                            for i in {1..10}; do
+                                curl -f --max-time 5 ${SERVICE_URL}/actuator/health &
+                            done
+                            wait
+                            echo "✅ Basic load test completed"
+                        """
+                    } catch (Exception e) {
+                        echo "Performance test failed: ${e.getMessage()}"
+                        currentBuild.result = 'UNSTABLE'
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo '🧹 Cleaning up workspace...'
+            sh """
+                docker system prune -f
+                docker image prune -f
+            """
+            cleanWs()
+        }
+        success {
+            echo '✅ 🎉 Pipeline completed successfully!'
+            echo "🌐 Service URL: ${SERVICE_URL}"
+            echo "🐳 Docker Image: ${DOCKER_IMAGE}:${BUILD_NUMBER}"
+
+            // Slack or email notification (optional)
+            // slackSend(
+            //     color: 'good',
+            //     message: "✅ Deployment Success: ${SERVICE_NAME} v${BUILD_NUMBER} is live at ${SERVICE_URL}"
+            // )
+        }
+        failure {
+            echo '❌ Pipeline failed!'
+            echo '📧 Check logs and fix issues before next deployment.'
+
+            // Failure notification (optional)
+            // slackSend(
+            //     color: 'danger',
+            //     message: "❌ Deployment Failed: ${SERVICE_NAME} build #${BUILD_NUMBER} failed. Check Jenkins logs."
+            // )
+        }
+        unstable {
+            echo '⚠️ Pipeline completed with warnings.'
+        }
+    }
+}

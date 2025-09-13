@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: product-postgres
+    environment:
+      POSTGRES_DB: amazon_product
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Sasikala@2361
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - product-network
+
+  product-service:
+    image: sasikala13/amazon-product:latest
+    container_name: product-service
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/amazon_product
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: Sasikala@2361
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    networks:
+      - product-network
+
+volumes:
+  postgres_data:
+
+networks:
+  product-network:
+    driver: bridge
